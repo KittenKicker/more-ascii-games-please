@@ -125,6 +125,15 @@ playGame(int fd)
     write(fd, "good", 4);
     //clear buffer
     memset(buf, 0, sizeof(buf));
+    
+    //get player number
+    recv(fd, buf, sizeof(buf), 0);
+    printf("%s\n", buf);
+    //send confirmation
+    write(fd, "good", 4);
+
+    //clear buffer
+    memset(buf, 0, sizeof(buf));
 
     while(!gameOver) //game is still going
     {
