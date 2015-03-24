@@ -450,24 +450,8 @@ process_request(int fd, int fd2)
     {
         disconnectWinner(fd);
     }
-
-    //let player 2 know they are player 2
-    write(fd2, "You are player 2", 16);
-
-    if(recv(fd2, response, 4, 0) <= 0)
-    {
-        disconnectWinner(fd1);
-    }
     
     //confirmation from player 1
-    if(recv(fd, response, 4, 0) <= 0)
-    {
-        disconnectWinner(fd2);
-    }
-
-    //let them know they are player 1
-    write(fd, "You are player 1", 16);
-
     if(recv(fd, response, 4, 0) <= 0)
     {
         disconnectWinner(fd2);
