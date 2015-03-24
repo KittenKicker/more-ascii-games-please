@@ -80,6 +80,21 @@ int make_server_socket_q(int portnum, int backlog)
 }
 
 /***********************************************/
+/* Function: disconnectWinner                                          
+/* Purpose: let other player know they won from Disconnect                              
+/* Parameters: int file descriptor for winning player                       
+/* Returns: none
+/*********************************************/
+disconnectWinner(int fd)
+{
+    char buffer[256];
+    sprintf(buffer, "Other player disconnected. You win!");
+    write(fd, buffer, sizeof(buffer));
+    recv(fd, buffer, 4, 0);
+    exit(0);
+}
+
+/***********************************************/
 /* Function: getRandomNumber                                           
 /* Purpose: generate random number 1-6                              
 /* Parameters: none                       
@@ -136,7 +151,10 @@ int sendTotalScore(int p1Points, int p2Points, int fd)
   write(fd, buffer, sizeof(buffer));
 
   //confirm client got & printed scores
-  recv(fd, buffer, 4, 0);
+  if(recv(fd, buffer, 4, 0) <= 0)
+  {
+    return -1;
+  }
 
   return 0;
 }
@@ -157,7 +175,10 @@ int sendMove(int fd)
     write(fd, buffer, sizeof(buffer));
 
     //wait for confirmation from client
-    recv(fd, buffer, 4, 0);
+    if(recv(fd, buffer, 4, 0) <= 0)
+    {
+        return -1;
+    }
     return 0;
 }
 
@@ -177,7 +198,11 @@ int sendRoll(int roll, int fd)
   write(fd, buffer, sizeof(buffer));
 
   //wait for confirmation
-  recv(fd, buffer, 4,0);
+  if(recv(fd, buffer, 4,0) <= 0)
+  {
+    return -1;
+  }
+
   return 0;
 }
 
@@ -204,6 +229,11 @@ int getMove(int fd)
   //clear buffer and wait for response
   memset(buffer, 0, sizeof(buffer));
   nbytes = read(fd, buffer, sizeof(buffer));
+
+  if(nbytes <= 0)
+  {
+    return -7; //number for sure not in use
+  }
 
   //null terminate buffer
   buffer[nbytes] = '\0';
@@ -241,8 +271,16 @@ int playGame(int fdp1, int fdp2)
   {
     //get a new roll and send to users
     roll = getRandomNumber();
-    sendRoll(roll, fdp1);
-    sendRoll(roll, fdp2);
+
+    if(sendRoll(roll, fdp1) == -1)
+    {
+        disconnectWinner(fdp2);
+    }
+
+    if(sendRoll(roll, fdp2) == -1)
+    {
+        disconnectWinner(fdp1);
+    }
 
     //if roll is 1 set player round score to 0 if they were
     //standing, otherwise add to their total score
@@ -264,8 +302,15 @@ int playGame(int fdp1, int fdp2)
       p2RoundScore = 0;
 
       //send total score update
-      sendTotalScore(p1TotalScore, p2TotalScore, fdp1);
-      sendTotalScore(p1TotalScore, p2TotalScore, fdp2);
+      if(sendTotalScore(p1TotalScore, p2TotalScore, fdp1) == -1)
+      {
+        disconnectWinner(fdp2);
+      }
+
+      if(sendTotalScore(p1TotalScore, p2TotalScore, fdp2) == -1)
+      {
+        disconnectWinner(fdp1);
+      }
 
       //reset move to stand
       p1Move = 1;
@@ -294,22 +339,36 @@ int playGame(int fdp1, int fdp2)
         if(p1Move != 0)
         {
             p1Move = getMove(fdp1);
+            if(p1Move == -7)
+            {
+                disconnectWinner(fdp2);
+            }
         }
         if(p2Move != 0)
         {
             p2Move = getMove(fdp2);
+            if(p2Move == -7)
+            {
+                disconnectWinner(fdp1);
+            }
         }      
 
         //let player 2 know player 1 is still standing
         if(p1Move != 0)
         {
-            sendMove(fdp2);
+            if( sendMove(fdp2) == -1)
+            {
+                disconnectWinner(fdp1);
+            }
         }
 
         //let player 1 know player 2 is still standing
         if(p2Move != 0)
         {
-            sendMove(fdp1);
+            if(sendMove(fdp1) == -1)
+            {
+                disconnectWinner(fdp2);
+            }
         }
 
         //if both players sat
@@ -322,8 +381,15 @@ int playGame(int fdp1, int fdp2)
             //reset round score and send score updates
             p1RoundScore = 0;
             p2RoundScore = 0;
-            sendTotalScore(p1TotalScore, p2TotalScore, fdp1);
-            sendTotalScore(p1TotalScore, p2TotalScore, fdp2);
+            if(sendTotalScore(p1TotalScore, p2TotalScore, fdp1) == -1)
+            {
+                disconnectWinner(fdp2);
+            }
+
+            if(sendTotalScore(p1TotalScore, p2TotalScore, fdp2) == -1)
+            {
+                disconnectWinner(fdp1);
+            }
 
             //reset players to standing
             p1Move = 1;
@@ -365,6 +431,7 @@ process_request(int fd, int fd2)
 
     //read in usernames
     username1Length = recv(fd, username, sizeof(username), 0);
+    
     username2Length = recv(fd2, username2, sizeof(username2), 0);
     
     //null terminate usernames
@@ -378,8 +445,16 @@ process_request(int fd, int fd2)
     write(fd, username2, strlen(username2));
 
     //wait for confirmation from clients
-    recv(fd2, response, 4, 0);
-    recv(fd, response, 4, 0);
+
+    if(recv(fd2, response, 4, 0) <= 0)
+    {
+        disconnectWinner(fd);
+    }
+    
+    if(recv(fd, response, 4, 0) <= 0)
+    {
+        disconnectWinner(fd2);
+    }
 
     //start the game and wait for who won
     result = playGame(fd, fd2);

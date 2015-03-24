@@ -178,6 +178,16 @@ playGame(int fd)
             //set game over flag
             gameOver = 1;
         }
+        //Other player disconnected
+        else if(strncmp("Other player disconnected", buf, strlen("Other player disconnected")) == 0)
+        {
+            //print message and confirm
+            printf("%s\n", buf);
+            write(fd, "good", 4);
+
+            //set game over flag
+            gameOver = 1;
+        }
 
         //clear buffer
         memset(buf, 0, sizeof(buf));
